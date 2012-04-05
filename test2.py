@@ -5,88 +5,75 @@ import time
 
 import numpy
 
+class MapJob:
+    """
+    Data acts as both inputdata and output data
+    """
+    def __init__(self,id,data):
+        self.id=id
+        self.data=data
 
-
-"""
-If the worker fails to allocate memory, add the job back to the queue again and retry later
-
-
-
-"""
-
-
-
-class Worker(multiprocessing.Process):
- 
-    def __init__(self, work_queue, result_queue):
- 
-        # base class initialization
+class MapWorker(multiprocessing.Process):
+    def __init__(self, work_queue,result_queue,map_function):
         multiprocessing.Process.__init__(self)
- 
-        # job management stuff
-        self.work_queue = work_queue
-        self.result_queue = result_queue
+        self.work_queue=work_queue
+        self.result_queue=result_queue
+        self.map_function=map_function
         self.kill_received = False
- 
+
+    
+
     def run(self):
         while not self.kill_received:
             try:
                 job = self.work_queue.get_nowait()
             except Queue.Empty:
                 break
- 
-            print("Starting " + str(job) + " ...")
-            A=numpy.array(range(100000000)).reshape(10000,10000)
- 
-            # store the result
-            self.result_queue.put(A[14][14])
-            A=[] #clean
+            try:
+                job.data=self.map_function(job.data) #and preserve the in the MapJob
+            except MemoryError: #not totally bulletproof but handles it batter
+                print job.id,". OutOfMemory, retrying"
+                continue
+            print job.id,". work done"
+            self.result_queue.put(job)
 
 
-
-def parallal_map(map_function,input_list)
+def parallel_map(map_function,input_list,num_processors=4):
     """
     @param input_list list<A>
     @param map_function f:A->B
     @return list<B>
     """
+    num_jobs=len(input_list)
+    
+    work_queue  =multiprocessing.Queue()
+    result_queue=multiprocessing.Queue()
 
+    map(lambda job_id:work_queue.put(MapJob(job_id,input_list[job_id])),range(num_jobs)) #create a list with job_id to keep track
+    map(lambda proc:MapWorker(work_queue,result_queue,map_function).start(),range(num_processors)) #create, connect and start the workers to the queues
+    output_list=[]
+    print "start fetching output"
+    map(lambda job_id:output_list.append(result_queue.get()),range(num_jobs)) #fetch all the resulting data
+    print "done fetching output"
+    output_list=sorted(output_list,key=lambda job:job.id)
+    output_list =  map(lambda v:v.data,output_list) #extract the data by removing id
 
-    raise Exception("not implemented yet")
-
-
-def parallel_do(do_functions):
-    TODO is this easily possible tru lambda or such, does one really need to run functions that doesnt have neither output nor input?
-    """
-    run all the functions, they must not affect each other (no co-sideeffect) that is the order of execution shouldn't affect the result
-    """
-    raise Exception("not implemented yet")
-
+    return output_list
 
 if __name__ == "__main__":
- 
-    num_jobs =10
-    num_processes=4
- 
-    # run
-    # load up work queue
-    work_queue = multiprocessing.Queue()
+    
+    def workload(indata):
+        return numpy.sum(indata+numpy.array(range(5*10**7)))
 
+    print "start parallel"
+    ticp=time.clock()
+    answer_parallel=parallel_map(workload,range(16))
+    tacp=time.clock()
+    print "start serial"
+    tics=time.clock()
+    answer_serial=map(workload,range(16))
+    tacs=time.clock()
 
-    for job in range(num_jobs):
-        work_queue.put(job)
- 
-    # create a queue to pass to workers to store the results
-    result_queue = multiprocessing.Queue()
- 
-    # spawn workers
-    for i in range(num_processes):
-        worker = Worker(work_queue, result_queue)
-        worker.start()
- 
-    # collect the results off the queue
-    results = []
-    for i in range(num_jobs):
-        print i,"=",result_queue.get()
+    print "Parallel:",(tacp-ticp),"s"
+    print "Serial:",(tacs-tics),"s"
 
-    print "done"
