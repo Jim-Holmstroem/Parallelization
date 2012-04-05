@@ -63,7 +63,7 @@ def parallel_map(map_function,input_list,num_processors=4):
 if __name__ == "__main__":
     
     def workload(indata):
-        return numpy.sum(indata+numpy.array(range(5*10**7)))
+        return numpy.sum(indata+numpy.array(range(10**7)))
 
     print "start parallel"
     ticp=time.clock()
@@ -74,6 +74,7 @@ if __name__ == "__main__":
     answer_serial=map(workload,range(16))
     tacs=time.clock()
 
+    something is wrong with the timing for parallel
     print "Parallel:",(tacp-ticp),"s"
     print "Serial:",(tacs-tics),"s"
 
