@@ -21,13 +21,16 @@ class MapWorker(multiprocessing.Process):
         self.map_function=map_function
         self.kill_received = False
 
-    
+    def start(self):
+        multiprocessing.Process.start(self)
+        return self
 
     def run(self):
         while not self.kill_received:
             try:
                 job = self.work_queue.get_nowait()
             except Queue.Empty:
+                print "Queue.empty"
                 break
             try:
                 job.data=self.map_function(job.data) #and preserve the in the MapJob
@@ -36,7 +39,6 @@ class MapWorker(multiprocessing.Process):
                 continue
             print job.id,". work done"
             self.result_queue.put(job)
-
 
 def parallel_map(map_function,input_list,num_processors=4):
     """
@@ -50,11 +52,14 @@ def parallel_map(map_function,input_list,num_processors=4):
     result_queue=multiprocessing.Queue()
 
     map(lambda job_id:work_queue.put(MapJob(job_id,input_list[job_id])),range(num_jobs)) #create a list with job_id to keep track
-    map(lambda proc:MapWorker(work_queue,result_queue,map_function).start(),range(num_processors)) #create, connect and start the workers to the queues
+    workers = map(lambda proc:MapWorker(work_queue,result_queue,map_function).start(),range(num_processors)) #create, connect and start the workers to the queues
     output_list=[]
     print "start fetching output"
     map(lambda job_id:output_list.append(result_queue.get()),range(num_jobs)) #fetch all the resulting data
     print "done fetching output"
+    for worker in workers:
+        worker=[]
+    print "killed workers"
     output_list=sorted(output_list,key=lambda job:job.id)
     output_list =  map(lambda v:v.data,output_list) #extract the data by removing id
 
@@ -63,7 +68,7 @@ def parallel_map(map_function,input_list,num_processors=4):
 if __name__ == "__main__":
     
     def workload(indata):
-        return numpy.sum(indata+numpy.array(range(10**7)))
+        return numpy.sum(indata+numpy.array(range(5*10**7)))
 
     print "start parallel"
     ticp=time.clock()
@@ -74,7 +79,6 @@ if __name__ == "__main__":
     answer_serial=map(workload,range(16))
     tacs=time.clock()
 
-    something is wrong with the timing for parallel
     print "Parallel:",(tacp-ticp),"s"
     print "Serial:",(tacs-tics),"s"
 
